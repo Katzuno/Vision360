@@ -1,4 +1,4 @@
-from flask import Flask, request, redirect, url_for, send_from_directory
+from flask import Flask, request, redirect, url_for, send_from_directory, send_file
 from werkzeug.utils import secure_filename
 import os
 import requests
@@ -84,9 +84,7 @@ def upload_file():
         filename = secure_filename(file.filename)
         print(file.filename)
         file.save(os.path.join(app.config['IMG_FOLDER'], filename))
-        img_url = request.host_url + "img/" + filename
-        print(img_url)
-        redirect_uri = request.host_url + "api/analyse?img_url=" + img_url
+        redirect_uri = request.host_url + "api/analyse?img_url=" + filename
     else:
         return json.dumps({'Status': 'Unexpected fail', 'Status_code': 0})
     return json.dumps({'url': redirect_uri, 'Status': 'File uploaded succesfully', 'Status_code': 0})
@@ -139,6 +137,39 @@ def analyze_img():
     return json.dumps(response_json)
 #    image_caption = analysis
 
+@app.route('/api/ocr', methods=['GET'])
+def ocr_img():
+    print("-------------REQUESTED ANALYZE IMAGE --------------------")
+    # Set image_url to the URL of an image that you want to analyze.
+    # img_url = image name
+    if request.args.get('img_url'):
+        image_url = app.config['IMG_FOLDER'] + request.args.get('img_url')
+    else:
+        return json.dumps({"Error": "Img_url is missing"})
+
+    headers = {'Ocp-Apim-Subscription-Key': subscription_key_cv,
+               'Content-Type': 'application/octet-stream'}
+    params  = {'language': 'en'}
+    image_data = open(image_url, "rb").read()
+    # data = {'url': image_url}
+    response = requests.post(ocr_url, headers=headers, params=params, data=image_data)
+    response.raise_for_status()
+    return json.dumps(response.json())
+    analysis = response.json()
+   # return json.dumps(analysis)
+    # Extract the word bounding boxes and text.
+    line_infos = [region["lines"] for region in analysis["regions"]]
+    word_infos = []
+    for line in line_infos:
+        for word_metadata in line:
+            for word_info in word_metadata["words"]:
+                word_infos.append(word_info)
+
+    content = []
+    for word in word_infos:
+        text = str(word["text"])
+        content.append(text)
+    return json.dumps(content)
 
 # r = raza, coord = coordonata y obiectului
 def in_range(coord, y, r):
@@ -189,17 +220,22 @@ def get_directions(object, image_url):
 
     return direction
 
-"""
+
 @app.route('/api/text-to-speech', methods=['GET'])
 def text2speech():
     if request.args.get('text'):
-        image_url = request.args.get('text')
+        text = request.args.get('text')
     else:
         return json.dumps({"Error": "Text is missing"})
-    tts_obj= TextToSpeech(subscription_key_t2s)
+    tts_obj= TextToSpeech(subscription_key_t2s, text)
     tts_obj.get_token()
-    tts_obj.save_audio()
-"""
+    path_to_file = tts_obj.save_audio()
+    return send_file(
+        path_to_file,
+        mimetype="audio/wav",
+        as_attachment=True,
+        attachment_filename="audio.wav")
+
 
 @app.route('/', methods=['GET'])
 def hello_world():

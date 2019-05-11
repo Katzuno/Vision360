@@ -5,6 +5,7 @@ directory with this command: python TTSSample.py
 import os, requests, time
 from xml.etree import ElementTree
 
+AUDIO_FOLDER = 'audio/'
 
 '''
 If you prefer, you can hardcode your subscription key as a string and remove
@@ -16,9 +17,9 @@ subscription_key = "Your-Key-Goes-Here"
 '''
 
 class TextToSpeech(object):
-    def __init__(self, subscription_key):
+    def __init__(self, subscription_key, text):
         self.subscription_key = subscription_key
-        self.tts = input("What would you like to convert to speech: ")
+        self.tts = text
         self.timestr = time.strftime("%Y%m%d-%H%M")
         self.access_token = None
 
@@ -59,8 +60,9 @@ class TextToSpeech(object):
         includes the date.
         '''
         if response.status_code == 200:
-            with open('sample-' + self.timestr + '.wav', 'wb') as audio:
+            with open(AUDIO_FOLDER + 'sample-' + self.timestr + '.wav', 'wb') as audio:
                 audio.write(response.content)
                 print("\nStatus code: " + str(response.status_code) + "\nYour TTS is ready for playback.\n")
+                return AUDIO_FOLDER + 'sample-' + self.timestr + '.wav'
         else:
             print("\nStatus code: " + str(response.status_code) + "\nSomething went wrong. Check your subscription key and headers.\n")
