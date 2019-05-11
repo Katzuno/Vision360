@@ -38,6 +38,7 @@ assert subscription_key_t2s
 vision_base_url = "https://francecentral.api.cognitive.microsoft.com/vision/v2.0/"
 
 analyze_url = vision_base_url + "analyze"
+ocr_url = vision_base_url + "ocr"
 
 # Display the image and overlay it with the caption.
 """
@@ -96,22 +97,25 @@ def upload_file():
 def analyze_img():
     print("-------------REQUESTED ANALYZE IMAGE --------------------")
     # Set image_url to the URL of an image that you want to analyze.
+    # img_url = image name
     if request.args.get('img_url'):
-        image_url = request.args.get('img_url')
+        image_url = app.config['IMG_FOLDER'] + request.args.get('img_url')
     else:
         return json.dumps({"Error": "Img_url is missing"})
 
-
-    headers = {'Ocp-Apim-Subscription-Key': subscription_key_cv}
+    headers = {'Ocp-Apim-Subscription-Key': subscription_key_cv,
+               'Content-Type': 'application/octet-stream'}
     params = {'visualFeatures': 'Objects'}
-    data = {'url': image_url}
-    response = requests.post(analyze_url, headers=headers, params=params, json=data)
+    image_data = open(image_url, "rb").read()
+    # data = {'url': image_url}
+    response = requests.post(analyze_url, headers=headers, params=params, data=image_data)
     response.raise_for_status()
 
 
     # The 'analysis' object contains various fields that describe the image. The most
     # relevant caption for the image is obtained from the 'description' property.
     analysis = response.json()
+
     object_list = []
     for object in analysis['objects']:
         obj_h = object['rectangle']['h']
@@ -120,11 +124,7 @@ def analyze_img():
         obj = Object(obj_h, real_height, desc, object['rectangle'])
         obj.calculate_distance()
         object_list.append(obj)
-
     object_list = sorted(object_list, key=lambda k: k.distance)
-    #for obj in object_list:
-    #    print(str(obj))
-#    print(object_list[0])
     response_json = []
     for obj in object_list:
         print(str(obj))
@@ -132,19 +132,62 @@ def analyze_img():
              'real_height': obj.real_height,
              'desc': obj.desc,
              'distance': obj.distance,
+             'direction': get_directions(obj, image_url),
              'position': obj.position}
         response_json.append(d)
-        get_directions(obj, image_url)
-
     print(response_json)
     return json.dumps(response_json)
 #    image_caption = analysis
 
+
+# r = raza, coord = coordonata y obiectului
+def in_range(coord, y, r):
+    return abs(coord - y) <= r
+
+
 def get_directions(object, image_url):
-    response = requests.get(image_url)
-    img = Image.open(BytesIO(response.content))
-    width, height = img.size
-    print('CAAAAAAAAAAAAACAAAAAAAAAAT:', width, height)
+    # response = requests.get(image_url)
+    img = Image.open(image_url)
+    height, width = img.size
+    cam_w, cam_h = width / 2, height
+    x = object.position['x'] + object.position['w'] / 2
+    y = object.position['y'] + object.position['h']
+    direction = ""
+    #print("===== DEBUG START =====", "\n", object.desc, " || Cam_w: ", cam_w, " | Cam_h: ", cam_h, " | X: ", x, " | Y: ", y)
+    #print("===== DEBUG END ======")
+
+
+    if in_range(x, cam_w, 100) and in_range(y, cam_h, 100):
+        direction = "obstacle-front"
+    elif not in_range(y, cam_h, 100) and in_range(x, cam_w, 100):
+        direction = "front"
+    elif x <= cam_w and y <= cam_h / 2:
+        direction = "front-left"
+    elif x >= cam_w and y <= cam_h / 2:
+        direction = "front-right"
+    elif x <= cam_w and y >= cam_h / 2:
+        direction = "left"
+    elif x >= cam_w and y >= cam_h / 2:
+        direction = "right"
+    else:
+        direction = "NONE"
+
+    """
+    if in_range(x, mid_w, 150) and in_range(y, mid_w, 150):
+        direction = "obstacle-front"
+    elif in_range(y, mid_h, 100) and in_range(x, mid_h, 100):
+        direction = "front"
+    elif x <= mid_w and y <= mid_h:
+        direction = "front-left"
+    elif x >= mid_w and y <= mid_h:
+        direction = "front-right"
+    elif x <= mid_w and y >= mid_h:
+        direction = "left" # immediate left
+    elif x >= mid_w and y >= mid_h:
+        direction = "right"
+    """
+
+    return direction
 
 """
 @app.route('/api/text-to-speech', methods=['GET'])
@@ -164,4 +207,4 @@ def hello_world():
 
 
 if __name__ == '__main__':
-    app.run("localhost", 5000)
+    app.run("gdcb.ro", 5000)
