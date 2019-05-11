@@ -76,8 +76,8 @@ def upload_file():
     # if user does not select file, browser also
     # submit a empty part without filename
     if file.filename == '':
-        print({'Status': 'No selected file'})
-        return json.dumps({'Status': 'No selected file'})
+        print({'Status': 'No selected file', 'Status_code': 0})
+        return json.dumps({'Status': 'No selected file', 'Status_code': 0})
 
     if file and allowed_file(file.filename):
         filename = secure_filename(file.filename)
@@ -87,8 +87,8 @@ def upload_file():
         print(img_url)
         redirect_uri = request.host_url + "api/analyse?img_url=" + img_url
     else:
-        return json.dumps({'Status': 'Unexpected fail'})
-    return json.dumps({'Analyze_url': redirect_uri, 'Status': 'File uploaded succesfully'})
+        return json.dumps({'Status': 'Unexpected fail', 'Status_code': 0})
+    return json.dumps({'url': redirect_uri, 'Status': 'File uploaded succesfully', 'Status_code': 0})
 
 
 #http://backdoor.erikhenning.ro/etc/uploads2/IMG_20190511_132343.jpg
@@ -117,19 +117,34 @@ def analyze_img():
         obj_h = object['rectangle']['h']
         real_height = 15
         desc = object['object']
-        obj = Object(obj_h, real_height, desc)
+        obj = Object(obj_h, real_height, desc, object['rectangle'])
         obj.calculate_distance()
         object_list.append(obj)
 
     object_list = sorted(object_list, key=lambda k: k.distance)
+    #for obj in object_list:
+    #    print(str(obj))
+#    print(object_list[0])
+    response_json = []
     for obj in object_list:
         print(str(obj))
+        d = {'img_height': obj.img_height,
+             'real_height': obj.real_height,
+             'desc': obj.desc,
+             'distance': obj.distance,
+             'position': obj.position}
+        response_json.append(d)
+        get_directions(obj, image_url)
 
-    return json.dumps(analysis)
+    print(response_json)
+    return json.dumps(response_json)
 #    image_caption = analysis
 
-#def get_directions(object):
-
+def get_directions(object, image_url):
+    response = requests.get(image_url)
+    img = Image.open(BytesIO(response.content))
+    width, height = img.size
+    print('CAAAAAAAAAAAAACAAAAAAAAAAT:', width, height)
 
 """
 @app.route('/api/text-to-speech', methods=['GET'])
@@ -149,4 +164,4 @@ def hello_world():
 
 
 if __name__ == '__main__':
-    app.run("gdcb.ro", 5000)
+    app.run("localhost", 5000)
