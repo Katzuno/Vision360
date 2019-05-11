@@ -1,0 +1,68 @@
+{
+  "objects": [
+    {
+      "rectangle": {
+        "x": 1097,
+        "y": 341,
+        "w": 196,
+        "h": 177
+      },
+      "object": "person",
+      "confidence": 0.624
+    },
+    {
+      "rectangle": {
+        "x": 1593,
+        "y": 502,
+        "w": 213,
+        "h": 248
+      },
+      "object": "person",
+      "confidence": 0.584
+    },
+    {
+      "rectangle": {
+        "x": 516,
+        "y": 417,
+        "w": 876,
+        "h": 672
+      },
+      "object": "Laptop",
+      "confidence": 0.643,
+      "parent": {
+        "object": "computer",
+        "confidence": 0.645
+      }
+    },
+    {
+      "rectangle": {
+        "x": 52,
+        "y": 3950,
+        "w": 494,
+        "h": 645
+      },
+      "object": "footwear",
+      "confidence": 0.515
+    },
+    {
+      "rectangle": {
+        "x": 1170,
+        "y": 3906,
+        "w": 942,
+        "h": 669
+      },
+      "object": "Jeans",
+      "confidence": 0.614,
+      "parent": {
+        "object": "Trousers",
+        "confidence": 0.614
+      }
+    }
+  ],
+  "requestId": "0618bc55-7236-4e38-bed3-515e3bb75c0e",
+  "metadata": {
+    "width": 2112,
+    "height": 4608,
+    "format": "Jpeg"
+  }
+}
