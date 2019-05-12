@@ -18,6 +18,7 @@ FACE_FOLDER = 'faces/'
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg'}
 OBJECTS_HEIGHT = {
 	'laptop' : 30,
+    'computer': 30,
 	'person' : 175,
 	'bottle' : 20,
 	'table' : 90,
