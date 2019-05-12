@@ -19,7 +19,7 @@ ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg'}
 OBJECTS_HEIGHT = {
 	'laptop' : 30,
     'computer': 30,
-	'person' : 175,
+	'person' : 175/2,
 	'bottle' : 20,
 	'table' : 90,
 	'chair' : 110,
@@ -28,9 +28,9 @@ OBJECTS_HEIGHT = {
 	'mouse' : 5,
 	'glasses' : 5,
 	'sunglasses' : 6,
-	'jeans' : 60,
-	'man' : 180,
-	'woman' : 160,
+	'jeans' : 40,
+	'man' : 180/2,
+	'woman' : 160/2,
 	'desk' : 110
 }
 
@@ -93,21 +93,21 @@ def send_js(path):
 
 @app.route('/api/upload', methods=['POST'])
 def upload_file():
-    print("Request to upload file")
+    #print("Request to upload file")
     # check if the post request has the file part
     if 'file' not in request.files:
-        print({'Status': 'No file part'})
+        #print({'Status': 'No file part'})
         return json.dumps({'Status': 'No file part'})
     file = request.files['file']
     # if user does not select file, browser also
     # submit a empty part without filename
     if file.filename == '':
-        print({'Status': 'No selected file', 'Status_code': 0})
+        #print({'Status': 'No selected file', 'Status_code': 0})
         return json.dumps({'Status': 'No selected file', 'Status_code': 0})
 
     if file and allowed_file(file.filename):
         filename = secure_filename(file.filename)
-        print(file.filename)
+        #print(file.filename)
         file.save(os.path.join(app.config['IMG_FOLDER'], filename))
         redirect_uri = request.host_url + "api/analyse?img_url=" + filename
     else:
@@ -116,21 +116,21 @@ def upload_file():
 
 @app.route('/api/upload/face', methods=['POST'])
 def upload_face():
-    print("Request to upload file")
+    #print("Request to upload file")
     # check if the post request has the file part
     if 'file' not in request.files:
-        print({'Status': 'No file part'})
+        #print({'Status': 'No file part'})
         return json.dumps({'Status': 'No file part'})
     file = request.files['file']
     # if user does not select file, browser also
     # submit a empty part without filename
     if file.filename == '':
-        print({'Status': 'No selected file', 'Status_code': 0})
+        #print({'Status': 'No selected file', 'Status_code': 0})
         return json.dumps({'Status': 'No selected file', 'Status_code': 0})
 
     if file and allowed_file(file.filename):
         filename = secure_filename(file.filename)
-        print(file.filename)
+        #print(file.filename)
         file.save(os.path.join(app.config['FACE_FOLDER'], filename))
         redirect_uri = request.host_url + "api/face?img_url=" + filename
     else:
@@ -140,7 +140,7 @@ def upload_face():
 #http://backdoor.erikhenning.ro/etc/uploads2/IMG_20190511_132343.jpg
 @app.route('/api/analyse', methods=['GET'])
 def analyze_img():
-    print("-------------REQUESTED ANALYZE IMAGE --------------------")
+    #print("-------------REQUESTED ANALYZE IMAGE --------------------")
     # Set image_url to the URL of an image that you want to analyze.
     # img_url = image name
     if request.args.get('img_url'):
@@ -175,7 +175,8 @@ def analyze_img():
     object_list = sorted(object_list, key=lambda k: k.distance)
     response_json = []
     for obj in object_list:
-        print(str(obj))
+        #print(str(obj))
+
         d = {'img_height': obj.img_height,
              'real_height': obj.real_height,
              'desc': obj.desc,
@@ -183,13 +184,13 @@ def analyze_img():
              'direction': get_directions(obj, image_url),
              'position': obj.position}
         response_json.append(d)
-    print(response_json)
+    #print(response_json)
     return json.dumps(response_json)
 #    image_caption = analysis
 
 @app.route('/api/ocr', methods=['GET'])
 def ocr_img():
-    print("-------------REQUESTED ANALYZE IMAGE --------------------")
+    #print("-------------REQUESTED ANALYZE IMAGE --------------------")
     # Set image_url to the URL of an image that you want to analyze.
     # img_url = image name
     if request.args.get('img_url'):
@@ -220,6 +221,56 @@ def ocr_img():
         text = str(word["text"])
         content.append(text)
     return json.dumps(content)
+
+def face_helper(img_url):
+    if request.args.get('img_url'):
+        image_url = app.config['FACE_FOLDER'] + request.args.get('img_url')
+    else:
+        return json.dumps({"Error": "Img_url is missing"})
+
+    known_faces = [{'faceId': 'de71b4ae-4f2f-4853-9e62-9736d92cc3e8',
+                    'name': 'dinca'},
+                   {'faceId': '4f6821ee-3bab-4cf7-952b-158a69894e5a',
+                    'name': 'narcis'},
+                   {'faceId': 'f5579aa3-0f54-49a7-8ccf-b63e25a44d39',
+                    'name': 'erik'},
+                   ]
+    image_data = open(image_url, "rb").read()
+
+    headers = {'Ocp-Apim-Subscription-Key': subscription_key_face,
+               'Content-Type': 'application/octet-stream'}
+
+    params = {
+        'returnFaceId': 'true',
+        'returnFaceLandmarks': 'false',
+        'returnFaceAttributes': '',
+    }
+
+    response = requests.post(face_detect_url, params=params, headers=headers, data=image_data)
+    curr_face_id = response.json()[0]['faceId']
+    headers = {'Ocp-Apim-Subscription-Key': subscription_key_face,
+               'Content-Type': 'application/json'}
+
+    index = 0
+    identical = False
+    while index < len(known_faces):
+        params_verify = json.dumps({
+            'faceId1': curr_face_id,
+            'faceId2': known_faces[index]['faceId']
+        }
+        )
+        response_verify = requests.post(face_verify_url, data=params_verify, headers=headers)
+        resp_dict = response_verify.json()
+        if resp_dict['isIdentical'] == True:
+            identical = True
+            break
+        index = index + 1
+    if identical == True:
+        person_name = known_faces[index]['name'].title()
+    else:
+        person_name = 'Stranger'
+    return {'Identical': identical, 'Name': person_name}
+
 
 @app.route('/api/face', methods=['GET'])
 def face_recognition():
@@ -284,8 +335,8 @@ def get_directions(object, image_url):
     x = object.position['x'] + object.position['w'] / 2
     y = object.position['y'] + object.position['h']
     direction = ""
-    #print("===== DEBUG START =====", "\n", object.desc, " || Cam_w: ", cam_w, " | Cam_h: ", cam_h, " | X: ", x, " | Y: ", y)
-    #print("===== DEBUG END ======")
+    ##print("===== DEBUG START =====", "\n", object.desc, " || Cam_w: ", cam_w, " | Cam_h: ", cam_h, " | X: ", x, " | Y: ", y)
+    ##print("===== DEBUG END ======")
 
 
     if in_range(x, cam_w, 100) and in_range(y, cam_h, 100):
@@ -324,7 +375,7 @@ def text2speech():
 
 @app.route('/', methods=['GET'])
 def hello_world():
-    return 'Hello World!'
+    return 'Server is in maintanance!'
 
 
 if __name__ == '__main__':

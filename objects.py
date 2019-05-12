@@ -1,4 +1,4 @@
-FOCAL_LENGTH = 4.15
+FOCAL_LENGTH = 2.5
 CAMERA_HEIGHT = 4608
 
 
@@ -12,7 +12,7 @@ class Object:
         self.position = position
 
     def calculate_distance(self):
-        self.distance = FOCAL_LENGTH * self.real_height * CAMERA_HEIGHT / self.img_height / 3.42
+        self.distance = (FOCAL_LENGTH * self.real_height * CAMERA_HEIGHT) / (self.img_height * 3.44)
 
     def __str__(self):
         str1 = "Img_height:" + str(self.img_height) + " | Real_height: " + str(self.real_height) + " | Object: " + \
