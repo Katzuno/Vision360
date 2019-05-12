@@ -14,19 +14,40 @@ from tts import TextToSpeech
 
 IMG_FOLDER = 'images/'
 AUDIO_FOLDER = 'audio/'
+FACE_FOLDER = 'faces/'
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg'}
+OBJECTS_HEIGHT = {
+	'laptop' : 30,
+	'person' : 175,
+	'bottle' : 20,
+	'table' : 90,
+	'chair' : 110,
+	'phone' : 15,
+	'paper' : 11,
+	'mouse' : 5,
+	'glasses' : 5,
+	'sunglasses' : 6,
+	'jeans' : 60,
+	'man' : 180,
+	'woman' : 160,
+	'desk' : 110
+}
 
 app = Flask(__name__, static_url_path='')
 
 app.config['IMG_FOLDER'] = IMG_FOLDER
 app.config['AUDIO_FOLDER'] = AUDIO_FOLDER
+app.config['FACE_FOLDER'] = FACE_FOLDER
+
 CORS(app)
 
 # Replace <Subscription Key> with your valid subscription key.
 subscription_key_cv = "312eab3b151b4ba2bfc07e92fb0dd49b"
 subscription_key_t2s = "da482cf4bb1f4c1784fe12b12ff81d88"
+subscription_key_face = "ef5412a138bc4249b5362ae366f20108"
 assert subscription_key_cv
 assert subscription_key_t2s
+assert subscription_key_face
 
 # You must use the same region in your REST call as you used to get your
 # subscription keys. For example, if you got your subscription keys from
@@ -39,7 +60,10 @@ vision_base_url = "https://francecentral.api.cognitive.microsoft.com/vision/v2.0
 
 analyze_url = vision_base_url + "analyze"
 ocr_url = vision_base_url + "ocr"
-
+face_api_url = 'https://francecentral.api.cognitive.microsoft.com/face/v1.0/'
+face_detect_url = face_api_url + "detect"
+face_verify_url = face_api_url + "verify" \
+                                 ""
 # Display the image and overlay it with the caption.
 """
 image = Image.open(BytesIO(requests.get(image_url).content))
@@ -87,8 +111,30 @@ def upload_file():
         redirect_uri = request.host_url + "api/analyse?img_url=" + filename
     else:
         return json.dumps({'Status': 'Unexpected fail', 'Status_code': 0})
-    return json.dumps({'url': redirect_uri, 'Status': 'File uploaded succesfully', 'Status_code': 0})
+    return json.dumps({'url': redirect_uri, 'Status': 'File uploaded succesfully', 'Status_code': 1})
 
+@app.route('/api/upload/face', methods=['POST'])
+def upload_face():
+    print("Request to upload file")
+    # check if the post request has the file part
+    if 'file' not in request.files:
+        print({'Status': 'No file part'})
+        return json.dumps({'Status': 'No file part'})
+    file = request.files['file']
+    # if user does not select file, browser also
+    # submit a empty part without filename
+    if file.filename == '':
+        print({'Status': 'No selected file', 'Status_code': 0})
+        return json.dumps({'Status': 'No selected file', 'Status_code': 0})
+
+    if file and allowed_file(file.filename):
+        filename = secure_filename(file.filename)
+        print(file.filename)
+        file.save(os.path.join(app.config['FACE_FOLDER'], filename))
+        redirect_uri = request.host_url + "api/face?img_url=" + filename
+    else:
+        return json.dumps({'Status': 'Unexpected fail', 'Status_code': 0})
+    return json.dumps({'url': redirect_uri, 'Status': 'File uploaded succesfully', 'Status_code': 1})
 
 #http://backdoor.erikhenning.ro/etc/uploads2/IMG_20190511_132343.jpg
 @app.route('/api/analyse', methods=['GET'])
@@ -117,8 +163,11 @@ def analyze_img():
     object_list = []
     for object in analysis['objects']:
         obj_h = object['rectangle']['h']
-        real_height = 15
         desc = object['object']
+        if desc in OBJECTS_HEIGHT.keys():
+            real_height = OBJECTS_HEIGHT[desc.lower()]
+        else:
+            real_height = 15
         obj = Object(obj_h, real_height, desc, object['rectangle'])
         obj.calculate_distance()
         object_list.append(obj)
@@ -154,7 +203,7 @@ def ocr_img():
     # data = {'url': image_url}
     response = requests.post(ocr_url, headers=headers, params=params, data=image_data)
     response.raise_for_status()
-    return json.dumps(response.json())
+    #return json.dumps(response.json())
     analysis = response.json()
    # return json.dumps(analysis)
     # Extract the word bounding boxes and text.
@@ -170,6 +219,53 @@ def ocr_img():
         text = str(word["text"])
         content.append(text)
     return json.dumps(content)
+
+@app.route('/api/face', methods=['GET'])
+def face_recognition():
+    if request.args.get('img_url'):
+        image_url = app.config['FACE_FOLDER'] + request.args.get('img_url')
+    else:
+        return json.dumps({"Error": "Img_url is missing"})
+
+    known_faces = [{'faceId': 'de71b4ae-4f2f-4853-9e62-9736d92cc3e8',
+                    'name': 'dinca'},
+                   {'faceId': '4f6821ee-3bab-4cf7-952b-158a69894e5a',
+                    'name': 'narcis'},
+                   {'faceId': 'f5579aa3-0f54-49a7-8ccf-b63e25a44d39',
+                    'name': 'erik'},
+                   ]
+    image_data = open(image_url, "rb").read()
+
+    headers = {'Ocp-Apim-Subscription-Key': subscription_key_face,
+               'Content-Type': 'application/octet-stream'}
+
+    params = {
+        'returnFaceId': 'true',
+        'returnFaceLandmarks': 'false',
+        'returnFaceAttributes': '',
+    }
+
+    response = requests.post(face_detect_url, params=params, headers=headers, data=image_data)
+    curr_face_id = response.json()[0]['faceId']
+    headers = {'Ocp-Apim-Subscription-Key': subscription_key_face,
+               'Content-Type': 'application/json'}
+
+    index = 0
+    identical = False
+    while index < len(known_faces):
+        params_verify = json.dumps({
+            'faceId1': curr_face_id,
+            'faceId2': known_faces[index]['faceId']
+        }
+        )
+        response_verify = requests.post(face_verify_url, data=params_verify, headers=headers)
+        resp_dict = response_verify.json()
+        if resp_dict['isIdentical'] == True:
+            identical = True
+            break
+        index = index + 1
+
+    return json.dumps({'Identical':identical, 'Name': known_faces[index]['name'].title()})
 
 # r = raza, coord = coordonata y obiectului
 def in_range(coord, y, r):
@@ -203,21 +299,6 @@ def get_directions(object, image_url):
     else:
         direction = "NONE"
 
-    """
-    if in_range(x, mid_w, 150) and in_range(y, mid_w, 150):
-        direction = "obstacle-front"
-    elif in_range(y, mid_h, 100) and in_range(x, mid_h, 100):
-        direction = "front"
-    elif x <= mid_w and y <= mid_h:
-        direction = "front-left"
-    elif x >= mid_w and y <= mid_h:
-        direction = "front-right"
-    elif x <= mid_w and y >= mid_h:
-        direction = "left" # immediate left
-    elif x >= mid_w and y >= mid_h:
-        direction = "right"
-    """
-
     return direction
 
 
@@ -243,4 +324,4 @@ def hello_world():
 
 
 if __name__ == '__main__':
-    app.run("gdcb.ro", 5000)
+    app.run("0.0.0.0", 8000)
