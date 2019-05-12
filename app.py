@@ -264,8 +264,11 @@ def face_recognition():
             identical = True
             break
         index = index + 1
-
-    return json.dumps({'Identical':identical, 'Name': known_faces[index]['name'].title()})
+    if identical == True:
+        person_name = known_faces[index]['name'].title()
+    else:
+        person_name = 'Stranger'
+    return json.dumps({'Identical': identical, 'Name': person_name})
 
 # r = raza, coord = coordonata y obiectului
 def in_range(coord, y, r):
